@@ -12,7 +12,7 @@ def fd2_periodic(Nx):
                 rows.append(i); cols.append(i-1); vals.append(1)
             if i != Nx-1:
                 rows.append(i); cols.append(i+1); vals.append(1)
-            if i == Nx-1
+            if i == Nx-1:
                 rows.append(i); cols.append(0); vals.append(1)
             rows.append(i); cols.append(i); vals.append(-2)
     L = sp.coo_array((vals, (rows, cols)), shape=(Nx,Nx))
@@ -50,14 +50,14 @@ def buildLaplacian(Nx,Ny, BCx, BCy):
     rows, cols, vals = [], [], []
     I = np.eye(Ny)
     # Build the first order laplacian
-    match BCx:
+    match BCx: # left and right boundaries
         case 0: # Dirichlet
             Lx = fd2_dirichlet(Nx)
         case 1: # Neumann
             Lx = fd2_neumann(Nx)
         case 2: # periodic
             Lx = fd2_periodic(Nx)
-    match BCy:
+    match BCy: # top and bottom boundaries
         case 0: # Dirichlet
             Ly = fd2_dirichlet(Nx)
         case 1: # Neumann
@@ -65,8 +65,8 @@ def buildLaplacian(Nx,Ny, BCx, BCy):
         case 2: # periodic
             Ly = fd2_periodic(Nx)
     L = sp.coo_array((vals, (rows, cols)), shape=(Nx,Nx))
-    D2_x = sp.kron(Lx,I)
-    D2_y = sp.kron(I,Ly)
+    D2_y = sp.kron(Ly,I) # refers to Y derivatives
+    D2_x = sp.kron(I,Lx) # referrs to x derivatives
     L = D2_y + D2_x
     return L
 
@@ -94,8 +94,8 @@ def buildDeriv(Nx,Ny, direction = 'y'):
 
 def sysAssembly(mu, Nx, Ny, dx, x, y, f, g, verbose=False):
     # Calculate each block matrix and Build A
-    L_u = mu*buildLaplacian(Nx-1,Ny-1)
-    L_v = mu*buildLaplacian(Nx-1,Ny-2)
+    L_u = mu*buildLaplacian(Nx-1,Ny-1, BCx = 2, BCy = 0)
+    L_v = mu*buildLaplacian(Nx-1,Ny-2, BCx = 2, BCy = 0)
     G_x = buildDeriv(Nx-1, Ny-1, direction = 'x')
     G_y = buildDeriv(Nx-2,Ny-1, direction = 'y')
     D_x = G_x.T #buildDeriv(Nx-1, Ny-1, direction = 'x')
@@ -124,14 +124,7 @@ def sysAssembly(mu, Nx, Ny, dx, x, y, f, g, verbose=False):
     O = np.zeros(((Nx-1) * ( Ny-1),))
 
     b = np.hstack((F,G,O))
-
-    # Apply Boundary conditions
-    # Top Boundary
-    for i in range(Nx):
-        mask = (A.row == i) & (A.col == i)
-        A
-
-
+        
     return A, b
 
 def main():
@@ -163,15 +156,15 @@ def main():
     dx = (x_L-x_0)/Nx # distance between nodes on type 1 grid (and type two grid)
 
     # inner linear system
-    A, b = sysAssembly(mu, Nx, Ny, dx, x, y, f, g, V_y_0, U_y_0)
-
+    A, b = sysAssembly(mu, Nx, Ny, dx, x, y, f, g)
+    A = A.tocsr()
     # Solve
-    #x_direct = spa.spsolve(A, b)
+    x_direct = spa.spsolve(A, b)
     #x_iter = spa.gmres(A, b)
 
     # visualize the model
-    #plt.spy(A)
-    #plt.show()
+    plt.spy(A)
+    plt.show()
     return 0
 
 if __name__ == "__main__":
