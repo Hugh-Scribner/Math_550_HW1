@@ -41,7 +41,7 @@ def buildDeriv(Nx,Ny, direction = 'y'):
     return D
 
 def sysAssembly(mu, Nx, Ny, dx, verbose=False):
-    # Calculate each block matrix
+    # Calculate each block matrix and Build A
     L_u = mu*buildLaplacian(Nx-1,Ny-1)
     L_v = mu*buildLaplacian(Nx-1,Ny-2)
     G_x = buildDeriv(Nx-1, Ny-1, direction = 'x')
@@ -61,7 +61,11 @@ def sysAssembly(mu, Nx, Ny, dx, verbose=False):
             [D_x, D_y, None]]
 
     A = sp.block_array(grid, format = 'csr')
-    return A
+
+    # Build out b using a meshgrid
+    b = 1 # placeholder for now
+
+    return A, b
 
 def main():
     # Control Panel
@@ -78,7 +82,7 @@ def main():
     y_0, y_L = x_0, x_L # y left and right boundaries
     dx = (x_L-x_0)/Nx # distance between nodes on type 1 grid (and type two grid)
 
-    A = sysAssembly(mu, Nx, Ny, dx)
+    A, b = sysAssembly(mu, Nx, Ny, dx)
 
 
     # visualize the model
