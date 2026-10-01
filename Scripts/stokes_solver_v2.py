@@ -44,9 +44,7 @@ def buildDeriv(Nr,Nc, dir = 'x'):
             A = sp.coo_array((val, (row, col)), shape=(Nr*Nr, Nr*Nc))
     return A
 
-def sysAssembly(mu, Nx, Ny, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=False):
-    Nr = Ny - 1
-    Nc = Nx - 1
+def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=False):
     # Calculate each block matrix and Build A
     L_u = mu*buildLaplacian(Nr, Nc, u_mat = True)
     L_v = mu*buildLaplacian(Nr-1,Nc)
@@ -95,6 +93,30 @@ def sysAssembly(mu, Nx, Ny, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
         
     return A, b
 
+def StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L):
+       # inner linear system
+    Nr = Ny - 1
+    Nc = Nx - 1
+    A, b = sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L)
+    A = A.tocsr()
+    # Solve
+    #x_direct = spa.spsolve(A, b)
+    x, exit_code = spa.gmres(A, b)
+    U = x[0:Nc*Nr]
+    V = x[Nc*Nr:(Nc*Nr+(Nr-1)*(Nc-1))]
+    P = x[(Nc*Nr+(Nr-1)*(Nc-1)):-1]
+    print(x.shape)
+    print(U.shape)
+    print(V.shape)
+    print(P.shape)
+
+    # P = P - np.mean(P)
+
+    # visualize the model
+    plt.spy(A)
+    plt.show()
+    return U, V, P
+
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
@@ -121,15 +143,7 @@ def main():
     dx = (x_L-x_0)/Nx # distance between nodes on type 1 grid (and type two grid)
 
     # inner linear system
-    A, b = sysAssembly(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L)
-    A = A.tocsr()
-    # Solve
-    #x_direct = spa.spsolve(A, b)
-    x_iter = spa.gmres(A, b)
-
-    # visualize the model
-    plt.spy(A)
-    plt.show()
+    StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L)
     return 0
 
 if __name__ == "__main__":
