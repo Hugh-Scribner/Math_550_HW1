@@ -23,7 +23,7 @@ def buildLaplacian(Nr, Nc, u_mat = False):
     A = sp.coo_array((val, (row, col)), shape=(Nr*Nc, Nr*Nc))
     return A
 
-def buildDeriv(Nr,Nc, dir = 'x'):
+def buildDeriv(Nr,Nc, dir = 'x', p_mat= False):
     row, col, val = [], [], []
     # Build the basic Laplacian
     if dir =='x':
@@ -35,14 +35,26 @@ def buildDeriv(Nr,Nc, dir = 'x'):
     if dir =='y':
         for i in range(Nr):
             for j in range(Nc):
-                if i > 0:
+                if p_mat:
                     row.append(Nc*i+j); col.append(Nc*i+j); val.append(-1.0)
-                if i < Nr-1:
-                    row.append(Nc*i+j); col.append(Nc*i+(j+Nc)); val.append(1.0)
-        if Nc > Nr:
-            A = sp.coo_array((val, (row, col)), shape=(Nr*Nc, Nc*Nc))
+                    row.append(Nc*i+j); col.append(Nc*i+j+Nc); val.append(1.0)
+                else:
+                    if i == 0:
+                        row.append(Nc*i+j); col.append(Nc*i+j); val.append(1.0)                        
+                    elif i == Nr-1:
+                        row.append(Nc*i+j); col.append(Nc*i+j-Nc); val.append(-1.0)
+                    else:
+                        row.append(Nc*i+j); col.append(Nc*i+j); val.append(1.0)
+                        row.append(Nc*i+j); col.append(Nc*i+j-Nc); val.append(-1.0)
+        if p_mat:
+            if Nc < Nr:
+                A = sp.coo_array((val, (row, col)))
+            else:
+                 A = sp.coo_array((val, (row, col)))
+        elif Nc > Nr:
+            A = sp.coo_array((val, (row, col)))
         else:
-            A = sp.coo_array((val, (row, col)), shape=(Nr*Nr, Nr*Nc))
+            A = sp.coo_array((val, (row, col)))
     return A
 
 def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=False):
@@ -50,9 +62,17 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     L_u = mu*buildLaplacian(Nr, Nc, u_mat = True)
     L_v = mu*buildLaplacian(Nr-1,Nc)
     G_x = -1*buildDeriv(Nr, Nc, dir = 'x')*dx
-    G_y = -1*buildDeriv(Nr-1,Nc, dir = 'y')*dx
+    G_y = -1*buildDeriv(Nr-1,Nc, dir = 'y', p_mat = True)*dx
     D_x = buildDeriv(Nr, Nc, dir = 'x') #buildDeriv(Nx-1, Ny-1, direction = 'x')
-    D_y = buildDeriv(Nr,Nc-1, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
+    D_y = buildDeriv(Nr,Nc, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
+    print(D_y)
+
+    print(L_u.shape)
+    print(L_v.shape)
+    print(G_x.shape)
+    print(G_y.shape)
+    print(D_x.shape)
+    print(D_y.shape)
 
     pin = True
     if pin:
@@ -148,7 +168,7 @@ def grid_eval(u, v, p, Nx, Ny, dx, x, y):
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 5 # number of nodes in the type 1 grid in each direction
+    Nx = 40 # number of nodes in the type 1 grid in each direction
     x_0 = 1.0 # x left boundary
     x_L = 6.0 # x right boundary
     tp = 2*np.pi
@@ -185,15 +205,15 @@ def main():
     V_exact = V_bundle[2]
     P_exact = P_bundle[2]
 
-    u_err = np.abs(U_approx - U_exact)/np.abs(U_exact)
-    v_err = np.abs(V_approx - V_exact)/np.abs(V_exact)
-    p_err = np.abs(P_approx - P_exact)/np.abs(P_exact)
+    U_err = np.abs(U_approx - U_exact)/np.abs(U_exact)
+    V_err = np.abs(V_approx - V_exact)/np.abs(V_exact)
+    P_err = np.abs(P_approx - P_exact)/np.abs(P_exact)
 
     # vmin = min(u_err.min(), v_err.min(), p_err.min())
     # vmax = max(u_err.max(), v_err.max(), p_err.max())
 
     fig1, ax1 = plt.subplots(nrows=1, ncols=3, constrained_layout=True)
-    im0 = ax1[0].pcolormesh(U_bundle[0], U_bundle[1], U_approx, cmap=colormap)#, vmin=vmin, vmax=vmax)
+    im0 = ax1[0].pcolormesh(U_bundle[0], U_bundle[1], U_err, cmap=colormap)#, vmin=vmin, vmax=vmax)
     im1 = ax1[1].pcolormesh(V_bundle[0], V_bundle[1], V_approx, cmap=colormap)#, vmin=vmin, vmax=vmax)
     im2 = ax1[1].pcolormesh(P_bundle[0], P_bundle[1], P_approx, cmap=colormap)#, vmin=vmin, vmax=vmax)
     for ax in ax1:
