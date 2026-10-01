@@ -1,0 +1,9 @@
+name: stokes
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - scipy<=1.15
+  - numpy
+  - matplotlib
+  - numba
