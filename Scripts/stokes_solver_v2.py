@@ -54,20 +54,21 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     D_x = buildDeriv(Nr, Nc, dir = 'x') #buildDeriv(Nx-1, Ny-1, direction = 'x')
     D_y = buildDeriv(Nr,Nc-1, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
 
-    # print(f"Lu: {L_u.shape}")
-    # print(f"Lv: {L_v.shape}")
-    # print(f"Gx: {G_x.shape}")
-    # print(f"Gy: {G_y.shape}")
-    # print(f"Dx: {D_x.shape}")
-    # print(f"Dy: {D_y.shape}")
-
     A_grid = [[L_u, None, G_x],
             [None, L_v, G_y],
+            #[G_x.T, G_y.T, None]]
             [D_x, D_y, None]]
 
     A = sp.block_array(A_grid, format = 'coo')
 
-    plt.spy(A, markersize=4, marker='.')
+    #plt.spy(A, markersize=4, marker='.')
+    fig, ax = plt.subplots()
+    sc = ax.scatter(A.col, A.row, c=A.data, s=8, cmap="coolwarm", marker="s")
+    ax.set_xlim(-0.5, A.shape[1] - 0.5)
+    ax.set_ylim(A.shape[0] - 0.5, -0.5)      # row 0 at the top, like spy
+    ax.set_aspect("equal")
+    ax.xaxis.tick_top()                       # optional: matches spy's axis placement
+    fig.colorbar(sc, ax=ax, label="value")
     plt.savefig("Images\\Spy.png")
 
     # Build out b using a meshgrid
@@ -88,12 +89,6 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     G[-1,:] -= V_bot
     b = np.hstack((F.flatten(),G.flatten(),O))
 
-    # print(dx)
-    # print(F.shape)
-    # print(G.shape)
-    # print(O.shape)
-    # print(b.shape)
-    # print(A.shape)
         
     return A, b
 
@@ -116,10 +111,6 @@ def StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose
     U = x[0:Nc*Nr]
     V = x[Nc*Nr:(Nc*Nr+(Nr-1)*(Nc))]
     P = x[(Nc*Nr+(Nr-1)*(Nc)):]
-    # print(x.shape)
-    # print(U.shape)
-    # print(V.shape)
-    # print(P.shape)
 
     P = P - np.mean(P)
 
@@ -128,9 +119,6 @@ def StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose
     V = V.reshape((Nr-1, Nc))
     P = P.reshape(Nr,Nc)
 
-    # visualize the model
-    #plt.spy(A)
-    #plt.show()
     return U, V, P
 
 def grid_eval(u, v, p, Nx, Ny, dx, x, y):
@@ -156,7 +144,7 @@ def grid_eval(u, v, p, Nx, Ny, dx, x, y):
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 10 # number of nodes in the type 1 grid in each direction
+    Nx = 6 # number of nodes in the type 1 grid in each direction
     x_0 = 1.0 # x left boundary
     x_L = 6.0 # x right boundary
     tp = 2*np.pi
@@ -197,13 +185,13 @@ def main():
     v_err = np.abs(V_approx - V_exact)/np.abs(V_exact)
     p_err = np.abs(P_approx - P_exact)/np.abs(P_exact)
 
-    vmin = min(u_err.min(), v_err.min(), p_err.min())
-    vmax = max(u_err.max(), v_err.max(), p_err.max())
+    # vmin = min(u_err.min(), v_err.min(), p_err.min())
+    # vmax = max(u_err.max(), v_err.max(), p_err.max())
 
     fig1, ax1 = plt.subplots(nrows=1, ncols=3, constrained_layout=True)
-    im0 = ax1[0].pcolormesh(U_bundle[0], U_bundle[1], u_err, cmap=colormap, vmin=vmin, vmax=vmax)
-    im1 = ax1[1].pcolormesh(V_bundle[0], V_bundle[1], v_err, cmap=colormap, vmin=vmin, vmax=vmax)
-    im2 = ax1[1].pcolormesh(P_bundle[0], P_bundle[1], p_err, cmap=colormap, vmin=vmin, vmax=vmax)
+    im0 = ax1[0].pcolormesh(U_bundle[0], U_bundle[1], U_approx, cmap=colormap)#, vmin=vmin, vmax=vmax)
+    im1 = ax1[1].pcolormesh(V_bundle[0], V_bundle[1], V_approx, cmap=colormap)#, vmin=vmin, vmax=vmax)
+    im2 = ax1[1].pcolormesh(P_bundle[0], P_bundle[1], P_approx, cmap=colormap)#, vmin=vmin, vmax=vmax)
     for ax in ax1:
         ax.set_aspect('equal')
         ax.set_xlabel("x")
