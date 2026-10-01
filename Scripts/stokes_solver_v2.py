@@ -49,8 +49,8 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     # Calculate each block matrix and Build A
     L_u = mu*buildLaplacian(Nr, Nc, u_mat = True)
     L_v = mu*buildLaplacian(Nr-1,Nc)
-    G_x = buildDeriv(Nr, Nc, dir = 'x')*dx
-    G_y = buildDeriv(Nr-1,Nc, dir = 'y')*dx
+    G_x = -1*buildDeriv(Nr, Nc, dir = 'x')*dx
+    G_y = -1*buildDeriv(Nr-1,Nc, dir = 'y')*dx
     D_x = buildDeriv(Nr, Nc, dir = 'x') #buildDeriv(Nx-1, Ny-1, direction = 'x')
     D_y = buildDeriv(Nr,Nc-1, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
 
@@ -66,6 +66,9 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
             [D_x, D_y, None]]
 
     A = sp.block_array(A_grid, format = 'coo')
+
+    plt.spy(A, markersize=4, marker='.')
+    plt.savefig("Images\\Spy.png")
 
     # Build out b using a meshgrid
     x_u = np.linspace(x[0], x[1], Nc)
@@ -106,9 +109,9 @@ def StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose
         print("Linear System Built.           ", end='\n')
         print("Solving for velocities...", end='\r')
     # Solve
-    #x_direct = spa.spsolve(A, b)
-    x, exit_code = spa.gmres(A, b)
-    if verbose and exit_code == 0 :
+    x = spa.spsolve(A, b)
+    # x, exit_code = spa.gmres(A, b)
+    if verbose:
         print("Velocities solved.              ", end='\n')
     U = x[0:Nc*Nr]
     V = x[Nc*Nr:(Nc*Nr+(Nr-1)*(Nc))]
