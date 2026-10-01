@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spa
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 
 def buildLaplacian(Nr, Nc, u_mat = False):
     row, col, val = [], [], []
@@ -69,12 +70,12 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     # Build out b using a meshgrid
     x_u = np.linspace(x[0], x[1], Nc)
     y_u = np.linspace(y[0] , y[1], Nr) + dx/2
-    xx, yy = np.meshgrid(x_u, y_u, indexing ='ij')
-    F = f(xx, yy)*dx**2 # Forcing in X
+    xx_u, yy_u = np.meshgrid(x_u, y_u, indexing ='xy')
+    F = f(xx_u, yy_u)*dx**2 # Forcing in X
     x_v = np.linspace(x[0], x[1], Nc) + dx/2
     y_v = np.linspace(y[0] + dx , y[1], Nr-1)
-    xx, yy = np.meshgrid(x_v, y_v, indexing ='ij')
-    G = g(xx, yy)*dx**2 # Forcing in Y
+    xx_v, yy_v = np.meshgrid(x_v, y_v, indexing ='xy')
+    G = g(xx_v, yy_v)*dx**2 # Forcing in Y
     O = np.zeros(((Nc) * ( Nr),))
 
     # apply BCs to forcing matricies
@@ -93,39 +94,77 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
         
     return A, b
 
-def StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L):
+def StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose = False):
        # inner linear system
     Nr = Ny - 1
     Nc = Nx - 1
-    A, b = sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L)
+    if verbose:
+        print("Building Linear System...", end='\r')
+    A, b = sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose = verbose)
     A = A.tocsr()
+    if verbose:
+        print("Linear System Built.           ", end='\n')
+        print("Solving for velocities...", end='\r')
     # Solve
     #x_direct = spa.spsolve(A, b)
     x, exit_code = spa.gmres(A, b)
+    if verbose and exit_code == 0 :
+        print("Velocities solved.              ", end='\n')
     U = x[0:Nc*Nr]
-    V = x[Nc*Nr:(Nc*Nr+(Nr-1)*(Nc-1))]
-    P = x[(Nc*Nr+(Nr-1)*(Nc-1)):-1]
-    print(x.shape)
-    print(U.shape)
-    print(V.shape)
-    print(P.shape)
+    V = x[Nc*Nr:(Nc*Nr+(Nr-1)*(Nc))]
+    P = x[(Nc*Nr+(Nr-1)*(Nc)):]
+    # print(x.shape)
+    # print(U.shape)
+    # print(V.shape)
+    # print(P.shape)
 
-    # P = P - np.mean(P)
+    P = P - np.mean(P)
+
+    # Put U, V, P into expected shapes
+    U = U.reshape(Nr,Nc)
+    V = V.reshape((Nr-1, Nc))
+    P = P.reshape(Nr,Nc)
 
     # visualize the model
-    plt.spy(A)
-    plt.show()
+    #plt.spy(A)
+    #plt.show()
     return U, V, P
+
+def grid_eval(u, v, p, Nx, Ny, dx, x, y):
+    Nc = Nx - 1
+    Nr = Ny - 1
+    x_u = np.linspace(x[0], x[1], Nc)
+    y_u = np.linspace(y[0] , y[1], Nr) + dx/2
+    xx_u, yy_u = np.meshgrid(x_u, y_u, indexing ='xy')
+    U = u(xx_u, yy_u)
+    x_v = np.linspace(x[0], x[1], Nc) + dx/2
+    y_v = np.linspace(y[0] + dx , y[1], Nr-1)
+    xx_v, yy_v = np.meshgrid(x_v, y_v, indexing ='xy')
+    V = v(xx_v, yy_v)
+    x_p = np.linspace(x[0], x[1], Nc) + dx/2
+    y_p = np.linspace(y[0] , y[1], Nr) + dx/2
+    xx_p, yy_p = np.meshgrid(x_p, y_p, indexing ='xy')
+    P = p(xx_p, yy_p)
+    u_grids = [xx_u, yy_u, U]
+    v_grids = [xx_v, yy_v, V]
+    p_grids = [xx_p, yy_p, P]
+    return u_grids, v_grids, p_grids
 
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 5 # number of nodes in the type 1 grid in each direction
-    x_0 = 0.0 # x left boundary
+    Nx = 10 # number of nodes in the type 1 grid in each direction
+    x_0 = 1.0 # x left boundary
     x_L = 6.0 # x right boundary
     tp = 2*np.pi
     f = lambda x, y: (tp - 2*tp**2) * np.sin(tp*x) * np.sin(tp*y)
     g = lambda x, y: np.cos(tp*x) * np.cos(tp*y) * (tp - 2*tp**2) + 2*tp**2 * np.cos(tp*x)
+
+    u_exact = lambda x,y: np.sin(tp*y) * np.sin(tp*x)
+    v_exact = lambda x,y: -3.5 + np.cos(tp*x)*(np.cos(tp*y)-1)
+    p_exact = lambda x,y: np.sin(tp*y) * np.sin(tp*x)
+
+    colormap = 'viridis'
 
     # U horizontal BCs
     U_y_0 = 0
@@ -142,8 +181,36 @@ def main():
     x, y = (x_0, x_L), (y_0, y_L)
     dx = (x_L-x_0)/Nx # distance between nodes on type 1 grid (and type two grid)
 
-    # inner linear system
-    StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L)
+    # Solve the problem
+    U_approx,V_approx,P_approx = StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose=True)
+    
+    # Error analysis
+    U_bundle,V_bundle,P_bundle = grid_eval(u_exact, v_exact, p_exact, Nx, Ny, dx, x, y)
+    U_exact = U_bundle[2]
+    V_exact = V_bundle[2]
+    P_exact = P_bundle[2]
+
+    u_err = np.abs(U_approx - U_exact)/np.abs(U_exact)
+    v_err = np.abs(V_approx - V_exact)/np.abs(V_exact)
+    p_err = np.abs(P_approx - P_exact)/np.abs(P_exact)
+
+    vmin = min(u_err.min(), v_err.min(), p_err.min())
+    vmax = max(u_err.max(), v_err.max(), p_err.max())
+
+    fig1, ax1 = plt.subplots(nrows=1, ncols=3, constrained_layout=True)
+    im0 = ax1[0].pcolormesh(U_bundle[0], U_bundle[1], u_err, cmap=colormap, vmin=vmin, vmax=vmax)
+    im1 = ax1[1].pcolormesh(V_bundle[0], V_bundle[1], v_err, cmap=colormap, vmin=vmin, vmax=vmax)
+    im2 = ax1[1].pcolormesh(P_bundle[0], P_bundle[1], p_err, cmap=colormap, vmin=vmin, vmax=vmax)
+    for ax in ax1:
+        ax.set_aspect('equal')
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.xaxis.set_major_locator(MultipleLocator(1))
+    fig1.colorbar(im0, ax=ax1, orientation='vertical', fraction=0.046, pad=0.04,  shrink=0.6)
+    ax1[0].set_title('Error in U')
+    ax1[1].set_title('Error in V')
+    ax1[2].set_title('Error in P')
+    plt.savefig("Images\\Error_Surfaces.png", bbox_inches='tight')
     return 0
 
 if __name__ == "__main__":
