@@ -54,10 +54,14 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     D_x = buildDeriv(Nr, Nc, dir = 'x') #buildDeriv(Nx-1, Ny-1, direction = 'x')
     D_y = buildDeriv(Nr,Nc-1, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
 
+    pin = True
+    if pin:
+        G_x = G_x + sp.coo_array(([-1], ([0],[0])), shape=(Nr*Nr, Nr*Nc))
+
     A_grid = [[L_u, None, G_x],
-            [None, L_v, G_y],
-            #[G_x.T, G_y.T, None]]
-            [D_x, D_y, None]]
+              [None, L_v, G_y],
+              [D_x, D_y, None]]
+              #[G_x.T, G_y.T, None]]
 
     A = sp.block_array(A_grid, format = 'coo')
 
@@ -144,7 +148,7 @@ def grid_eval(u, v, p, Nx, Ny, dx, x, y):
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 6 # number of nodes in the type 1 grid in each direction
+    Nx = 5 # number of nodes in the type 1 grid in each direction
     x_0 = 1.0 # x left boundary
     x_L = 6.0 # x right boundary
     tp = 2*np.pi
