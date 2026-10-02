@@ -65,14 +65,13 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     G_y = -1*buildDeriv(Nr-1,Nc, dir = 'y', p_mat = True)*dx
     D_x = buildDeriv(Nr, Nc, dir = 'x') #buildDeriv(Nx-1, Ny-1, direction = 'x')
     D_y = buildDeriv(Nr,Nc, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
-    print(D_y)
-
-    print(L_u.shape)
-    print(L_v.shape)
-    print(G_x.shape)
-    print(G_y.shape)
-    print(D_x.shape)
-    print(D_y.shape)
+    
+    # print(L_u.shape)
+    # print(L_v.shape)
+    # print(G_x.shape)
+    # print(G_y.shape)
+    # print(D_x.shape)
+    # print(D_y.shape)
 
     pin = True
     if pin:
@@ -104,15 +103,18 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     y_v = np.linspace(y[0] + dx , y[1], Nr-1)
     xx_v, yy_v = np.meshgrid(x_v, y_v, indexing ='xy')
     G = g(xx_v, yy_v)*dx**2 # Forcing in Y
-    O = np.zeros(((Nc) * ( Nr),))
+    O = np.zeros((Nc, Nr))
 
     # apply BCs to forcing matricies
     F[0,:] -= U_top
     G[0,:] -= V_top
+    O[0,:] -= V_top
     F[-1,:] -= U_bot
     G[-1,:] -= V_bot
-    b = np.hstack((F.flatten(),G.flatten(),O))
+    O[-1,:] -= V_bot
 
+    b = np.hstack((F.flatten(),G.flatten(),O.flatten()))
+    
         
     return A, b
 
@@ -168,7 +170,7 @@ def grid_eval(u, v, p, Nx, Ny, dx, x, y):
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 40 # number of nodes in the type 1 grid in each direction
+    Nx = 50 # number of nodes in the type 1 grid in each direction
     x_0 = 1.0 # x left boundary
     x_L = 6.0 # x right boundary
     tp = 2*np.pi
