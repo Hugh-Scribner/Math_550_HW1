@@ -29,8 +29,8 @@ def buildDeriv(Nr,Nc, dir = 'x', p_mat= False):
     if dir =='x':
         for i in range(Nr):
             for j in range(Nc):
-                row.append(Nc*i+j); col.append(Nc*i+j % Nc); val.append(-1.0) # loop back for periodicity
                 row.append(Nc*i+j); col.append(Nc*i+(j+1) % Nc); val.append(1.0) # loop back for periodicity
+                row.append(Nc*i+j); col.append(Nc*i+(j) % Nc); val.append(-1.0) # loop back for periodicity
         A = sp.coo_array((val, (row, col)), shape=(Nr*Nr, Nr*Nc))
     if dir =='y':
         for i in range(Nr):
@@ -61,8 +61,8 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     # Calculate each block matrix and Build A
     L_u = mu*buildLaplacian(Nr, Nc, u_mat = True)
     L_v = mu*buildLaplacian(Nr-1,Nc)
-    G_x = -1*buildDeriv(Nr, Nc, dir = 'x')*dx
-    G_y = -1*buildDeriv(Nr-1,Nc, dir = 'y', p_mat = True)*dx
+    G_x = -1.0*buildDeriv(Nr, Nc, dir = 'x')
+    G_y = -1.0*buildDeriv(Nr-1,Nc, dir = 'y', p_mat = True)
     D_x = buildDeriv(Nr, Nc, dir = 'x') #buildDeriv(Nx-1, Ny-1, direction = 'x')
     D_y = buildDeriv(Nr,Nc, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
     
@@ -77,10 +77,10 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     if pin:
         G_x = G_x + sp.coo_array(([-1], ([0],[0])), shape=(Nr*Nr, Nr*Nc))
 
-    A_grid = [[L_u, None, G_x],
-              [None, L_v, G_y],
-              [D_x, D_y, None]]
-              #[G_x.T, G_y.T, None]]
+    A_grid = [[L_u, None, dx*G_x],
+              [None, L_v, dx*G_y],
+              #[D_x, D_y, None]] # Need to revisit how we are building D, it doesn't match G_x.T and it should (at least need to understand where we went wrong)
+              [G_x.T, G_y.T, None]]
 
     A = sp.block_array(A_grid, format = 'coo')
 
@@ -106,12 +106,12 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     O = np.zeros((Nc, Nr))
 
     # apply BCs to forcing matricies
-    F[0,:] -= U_top
-    G[0,:] -= V_top
-    O[0,:] -= V_top
-    F[-1,:] -= U_bot
-    G[-1,:] -= V_bot
-    O[-1,:] -= V_bot
+    F[0,:] -= 2*U_bot   # Ghost point for u
+    G[0,:] -= mu*V_bot  # Dirichlet value
+    O[0,:] += V_bot     # dirichlet
+    F[-1,:] -= 2*U_top
+    G[-1,:] -= mu*V_top
+    O[-1,:] -= V_top
 
     b = np.hstack((F.flatten(),G.flatten(),O.flatten()))
     
@@ -170,12 +170,14 @@ def grid_eval(u, v, p, Nx, Ny, dx, x, y):
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 50 # number of nodes in the type 1 grid in each direction
+    Nx = 100 # number of nodes in the type 1 grid in each direction
     x_0 = 1.0 # x left boundary
     x_L = 6.0 # x right boundary
     tp = 2*np.pi
-    f = lambda x, y: (tp - 2*tp**2) * np.sin(tp*x) * np.sin(tp*y)
-    g = lambda x, y: np.cos(tp*x) * np.cos(tp*y) * (tp - 2*tp**2) + 2*tp**2 * np.cos(tp*x)
+    f = lambda x, y: -2*tp**2*np.sin(tp*x)*np.sin(tp*y) - tp*np.cos(tp*x)*np.sin(tp*y)
+    g = lambda x, y: -2*tp**2*np.cos(tp*x)*np.cos(tp*y) + tp**2*np.cos(tp*x) - tp*np.sin(tp*x)*np.cos(tp*y)
+    #f = lambda x, y: (tp - 2*tp**2) * np.sin(tp*x) * np.sin(tp*y)
+    #g = lambda x, y: np.cos(tp*x) * np.cos(tp*y) * (tp - 2*tp**2) + 2*tp**2 * np.cos(tp*x)
 
     u_exact = lambda x,y: np.sin(tp*y) * np.sin(tp*x)
     v_exact = lambda x,y: -3.5 + np.cos(tp*x)*(np.cos(tp*y)-1)
@@ -207,17 +209,19 @@ def main():
     V_exact = V_bundle[2]
     P_exact = P_bundle[2]
 
-    U_err = np.abs(U_approx - U_exact)/np.abs(U_exact)
-    V_err = np.abs(V_approx - V_exact)/np.abs(V_exact)
-    P_err = np.abs(P_approx - P_exact)/np.abs(P_exact)
+    U_err = np.abs(U_approx - U_exact)
+    V_err = np.abs(V_approx - V_exact)
+    P_err = np.abs(P_approx - P_exact)
 
-    # vmin = min(u_err.min(), v_err.min(), p_err.min())
-    # vmax = max(u_err.max(), v_err.max(), p_err.max())
+    #vmin = min(U_approx.min(), V_approx.min(), P_approx.min())
+    #vmax = max(U_approx.max(), V_approx.max(), P_approx.max())
+    vmin = min(U_err.min(), V_err.min(), P_err.min())
+    vmax = max(U_err.max(), V_err.max(), P_err.max())
 
     fig1, ax1 = plt.subplots(nrows=1, ncols=3, constrained_layout=True)
-    im0 = ax1[0].pcolormesh(U_bundle[0], U_bundle[1], U_err, cmap=colormap)#, vmin=vmin, vmax=vmax)
-    im1 = ax1[1].pcolormesh(V_bundle[0], V_bundle[1], V_approx, cmap=colormap)#, vmin=vmin, vmax=vmax)
-    im2 = ax1[1].pcolormesh(P_bundle[0], P_bundle[1], P_approx, cmap=colormap)#, vmin=vmin, vmax=vmax)
+    im0 = ax1[0].pcolormesh(U_bundle[0], U_bundle[1], U_err, cmap=colormap, vmin=vmin, vmax=vmax)
+    im1 = ax1[1].pcolormesh(V_bundle[0], V_bundle[1], V_err, cmap=colormap, vmin=vmin, vmax=vmax)
+    im2 = ax1[2].pcolormesh(P_bundle[0], P_bundle[1], P_err, cmap=colormap, vmin=vmin, vmax=vmax)
     for ax in ax1:
         ax.set_aspect('equal')
         ax.set_xlabel("x")
