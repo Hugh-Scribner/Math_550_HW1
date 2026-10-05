@@ -192,26 +192,51 @@ def grid_eval(u, v, p, Nx, Ny, x, y):
 
     return u_grids, v_grids, p_grids
 
-def convTest(mesh_range, num_trials, Operator, filepath):
+def bcApply(u,v, BCs):
+    U = np.hstack((u[:,-1:],u)) # Apply Periodic BC in U
+    V = np.vstack((BCs[0]*np.ones((1,v.shape[1])),v,BCs[1]*np.ones((1,v.shape[1])))) # Apply Dirichlet BCs in Y
+    return U, V
+
+def gridInterp(u,v, BCs):
+    u_temp, v_temp = bcApply(u,v, BCs)
+    u_vec = np.zeros((u_temp.shape[0], u_temp.shape[1]-1))
+    v_vec = np.zeros((v_temp.shape[0]-1, v_temp.shape[1]))
+    for i in range(v_vec.shape[0]):
+        u_vec[:,i] = (u_temp[:, i+1] + u_temp[:, i])/2.0
+        v_vec[i,:] = (v_temp[i+1,:] + v_temp[i,:])/2.0
+    return [u_vec, v_vec]
+
+def rel_error(u_exact, u_approx):
+    L_2_error = np.linalg.norm(u_exact-u_approx, ord = 'fro')/np.linalg.norm(u_exact, ord = 'fro')
+    return L_2_error
+
+def convTest(mesh_range, num_trials, exact_sol, num_Operator, x, y, BCs, filepath = 'Images\\convergence_plot.png'):
     meshes = np.floor(np.linspace(mesh_range[0], mesh_range[1], num_trials)).astype(int)
-    L_2 = np.zeros(num_trials)
+    L_2 = np.zeros((3,num_trials))
     for i in range(num_trials):
         print(f"Simulating mesh with {meshes[i]**2} nodes")
-        U_approx,V_approx,P_approx = Operator(meshes[i])
-        L_2[i] = rel_error(a, b, meshes[i]) #calculate relative errors for increasingly finer meshes.
+        U_temp,V_temp,P_approx = num_Operator(meshes[i])
+        U_approx, V_approx = gridInterp(U_temp, V_temp, BCs)
+        u_grid, v_grid, p_grid = buildGrids(x, y, meshes[i]-1, meshes[i]-1)
+        xx, yy = p_grid[0], p_grid[1]
+        U_exact, V_exact, P_exact = exact_sol(xx,yy)
+        
+        L_2[0,i] = rel_error(U_exact, U_approx) #calculate relative errors for increasingly finer meshes.
+        L_2[1,i] = rel_error(V_exact, V_approx) #calculate relative errors for increasingly finer meshes.
+        L_2[2,i] = rel_error(P_exact, P_approx) #calculate relative errors for increasingly finer meshes.
 
     fig3 = plt.figure(3)
     ax3 = plt.axes()
     plt.rcParams['lines.linewidth'] = 3 
-#   plt.plot(meshes, L_2, label = "L_2")
-    plt.loglog(meshes, L_2, label = "L_2")
-#   plt.loglog(meshes, L_inf, label = "L_inf")
-#   ax3.set_xscale('log')
-#   ax3.set_yscale('log')
+    plt.loglog(meshes, L_2[1,:], label = "V")
+    plt.loglog(meshes, L_2[2,:], label = "P")
+    plt.loglog(meshes, 1/meshes**2, label = "Reference")
+    plt.loglog(meshes, L_2[0,:], label = "U")
     plt.legend()
     ax3.set_xlabel("Number of FD Nodes")
     ax3.set_ylabel("Relative Error")
-    plt.savefig('Images\\problem4_3.png')
+    plt.savefig(filepath)
+    return 0
 
 def main():
     # Control Panel
@@ -237,6 +262,7 @@ def main():
     # V horizontal BCs,
     V_y_0 = -3.5
     V_y_L = -3.5
+    V_BCs = [V_y_0, V_y_L]
 
     # Set up the square
     Ny = Nx
@@ -278,6 +304,23 @@ def main():
 
     # Plot convergence curve
     O_stokes = lambda Nx: StokesSolver(mu, Nx, Nx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose=False, make_spy=False)
+    exact_sol = lambda x,y: [u_exact(x,y), v_exact(x,y), p_exact(x,y)]
+    convTest([10,100], 10, exact_sol, O_stokes, x, y, V_BCs)
+
+    # Plot mag of u
+    U_vec = gridInterp(U_approx, V_approx, V_BCs)
+    U_mag = np.sqrt(U_vec[0]**2 + U_vec[1]**2)
+    plt.figure()
+    ax = plt.axes()
+    plt.pcolormesh(P_bundle[0], P_bundle[1], U_mag, cmap = 'viridis')
+    ax.set_aspect('equal')
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    fig1.colorbar(im0, ax=ax1, orientation='vertical', fraction=0.046, pad=0.04,  shrink=0.6)
+    ax1[0].set_title('Error in U')
+    ax1[1].set_title('Error in V')
+    ax1[2].set_title('Error in P')
+    plt.savefig("Images\\mag_u.png", bbox_inches='tight')
 
     # Plot a flow field
 
