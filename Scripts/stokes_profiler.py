@@ -24,18 +24,22 @@ def buildGrids(x, y, Nc, Nr):
 
     return ugrids, vgrids, pgrids
 
-def coloredSpy(A, colormap = "coolwarm", filepath = "Images\\Spy.png"):
-    #plt.spy(A, markersize=4, marker='.')
-    fig, ax = plt.subplots()
-    sc = ax.scatter(A.col, A.row, c=A.data, s=8, cmap=colormap, marker="s")
-    ax.set_xlim(-0.5, A.shape[1] - 0.5)
-    ax.set_ylim(A.shape[0] - 0.5, -0.5)      # row 0 at the top, like spy
-    ax.set_aspect("equal")
-    ax.xaxis.tick_top()                       # optional: matches spy's axis placement
-    fig.colorbar(sc, ax=ax, label="value")
-    plt.savefig(filepath)
-    plt.close(fig)
-    return 0
+def grid_eval(u, v, p, Nx, Ny, x, y):
+    dx = (x[1]-x[0])/(Nx-1)
+    Nc = Nx - 1
+    Nr = Ny - 1
+
+    u_grids, v_grids, p_grids = buildGrids(x, y, Nc, Nr)
+
+    U = u(u_grids[0], u_grids[1])
+    V = v(v_grids[0], v_grids[1])
+    P = p(p_grids[0], p_grids[1])
+
+    u_grids.append(U)
+    v_grids.append(V)
+    p_grids.append(P)
+
+    return u_grids, v_grids, p_grids
 
 def buildLaplacian(Nr, Nc, u_mat = False):
     row, col, val = [], [], []
@@ -104,13 +108,6 @@ def sysAssembly(mu, Nc, Nr, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=Fals
     G_y = -1.0*buildDeriv(Nr-1,Nc, dir = 'y', p_mat = True)
     D_x = buildDeriv(Nr, Nc, dir = 'x') #buildDeriv(Nx-1, Ny-1, direction = 'x')
     D_y = buildDeriv(Nr,Nc, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
-    
-    # print(L_u.shape)
-    # print(L_v.shape)
-    # print(G_x.shape)
-    # print(G_y.shape)
-    # print(D_x.shape)
-    # print(D_y.shape)
 
     pin = False
     if pin:
@@ -126,9 +123,6 @@ def sysAssembly(mu, Nc, Nr, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=Fals
                           #[G_x.T, G_y.T, None]]        
 
     A = sp.block_array(A_grid, format = 'coo')
-
-    if spy:
-        coloredSpy(A)
 
     u_grid, v_grid, p_grid = buildGrids(x, y, Nc, Nr)
     F = f(u_grid[0], u_grid[1])*dx**2 # Forcing in X
@@ -176,74 +170,15 @@ def StokesSolver(mu, Nx, Ny, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose = F
 
     return U, V, P
 
-def grid_eval(u, v, p, Nx, Ny, x, y):
-    dx = (x[1]-x[0])/(Nx-1)
-    Nc = Nx - 1
-    Nr = Ny - 1
-
-    u_grids, v_grids, p_grids = buildGrids(x, y, Nc, Nr)
-
-    U = u(u_grids[0], u_grids[1])
-    V = v(v_grids[0], v_grids[1])
-    P = p(p_grids[0], p_grids[1])
-
-    u_grids.append(U)
-    v_grids.append(V)
-    p_grids.append(P)
-
-    return u_grids, v_grids, p_grids
-
 def bcApply(u,v, BCs):
     U = np.hstack((u[:,-1:],u)) # Apply Periodic BC in U
     V = np.vstack((BCs[0]*np.ones((1,v.shape[1])),v,BCs[1]*np.ones((1,v.shape[1])))) # Apply Dirichlet BCs in Y
     return U, V
 
-def gridInterp(u,v, BCs):
-    u_temp, v_temp = bcApply(u,v, BCs)
-    u_vec = np.zeros((u_temp.shape[0], u_temp.shape[1]-1))
-    v_vec = np.zeros((v_temp.shape[0]-1, v_temp.shape[1]))
-    for i in range(v_vec.shape[0]):
-        u_vec[:,i] = (u_temp[:, i+1] + u_temp[:, i])/2.0
-        v_vec[i,:] = (v_temp[i+1,:] + v_temp[i,:])/2.0
-    return [u_vec, v_vec]
-
-def rel_error(u_exact, u_approx):
-    L_2_error = np.linalg.norm(u_exact-u_approx, ord = 'fro')/np.linalg.norm(u_exact, ord = 'fro')
-    return L_2_error
-
-def convTest(mesh_range, num_trials, exact_sol, num_Operator, x, y, BCs, filepath = 'Images\\convergence_plot.png'):
-    meshes = np.floor(np.linspace(mesh_range[0], mesh_range[1], num_trials)).astype(int)
-    L_2 = np.zeros((3,num_trials))
-    for i in range(num_trials):
-        print(f"Simulating mesh with {meshes[i]**2} nodes")
-        U_temp,V_temp,P_approx = num_Operator(meshes[i])
-        U_approx, V_approx = gridInterp(U_temp, V_temp, BCs)
-        u_grid, v_grid, p_grid = buildGrids(x, y, meshes[i]-1, meshes[i]-1)
-        xx, yy = p_grid[0], p_grid[1]
-        U_exact, V_exact, P_exact = exact_sol(xx,yy)
-        
-        L_2[0,i] = rel_error(U_exact, U_approx) #calculate relative errors for increasingly finer meshes.
-        L_2[1,i] = rel_error(V_exact, V_approx) #calculate relative errors for increasingly finer meshes.
-        L_2[2,i] = rel_error(P_exact, P_approx) #calculate relative errors for increasingly finer meshes.
-
-    fig3 = plt.figure(3)
-    ax3 = plt.axes()
-    plt.rcParams['lines.linewidth'] = 3 
-    plt.loglog(meshes, 1/meshes, label = r"$\mathcal{O}(\Delta x)$ Reference", color = 'black', linestyle = '--')
-    plt.loglog(meshes, 1/meshes**2, label = r"$\mathcal{O}(\Delta x^2)$ Reference", color = 'black')
-    plt.loglog(meshes, L_2[2,:], label = "P", color = 'purple')
-    plt.loglog(meshes, L_2[0,:], label = "U", color = 'orange', linestyle = '--', linewidth = 6)
-    plt.loglog(meshes, L_2[1,:], label = "V", color = 'red')
-    plt.legend()
-    ax3.set_xlabel("Number of FD Nodes")
-    ax3.set_ylabel("Relative Error")
-    plt.savefig(filepath)
-    return 0
-
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 100 # number of nodes in the type 1 grid in each direction
+    Nx = 25 # number of nodes in the type 1 grid in each direction
     x_0 = 0.0 # x left boundary
     x_L = 1.0 # x right boundary
     tp = 2*np.pi
@@ -274,59 +209,10 @@ def main():
     # Solve the problem
     U_approx,V_approx,P_approx = StokesSolver(mu, Nx, Ny, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose=True, make_spy=True)
 
-    # Error analysis
-    U_bundle,V_bundle,P_bundle = grid_eval(u_exact, v_exact, p_exact, Nx, Ny, x, y)
-    U_exact = U_bundle[2]
-    V_exact = V_bundle[2]
-    P_exact = P_bundle[2]
-
-    U_err = np.abs(U_approx - U_exact)
-    V_err = np.abs(V_approx - V_exact)
-    P_err = np.abs(P_approx - P_exact)
-
-    #vmin = min(U_approx.min(), V_approx.min(), P_approx.min())
-    #vmax = max(U_approx.max(), V_approx.max(), P_approx.max())
-    vmin = min(U_err.min(), V_err.min(), P_err.min())
-    vmax = max(U_err.max(), V_err.max(), P_err.max())
-
-    fig1, ax1 = plt.subplots(nrows=1, ncols=3, constrained_layout=True)
-    im0 = ax1[0].pcolormesh(U_bundle[0], U_bundle[1], U_err, cmap=colormap, vmin=vmin, vmax=vmax)
-    im1 = ax1[1].pcolormesh(V_bundle[0], V_bundle[1], V_err, cmap=colormap, vmin=vmin, vmax=vmax)
-    im2 = ax1[2].pcolormesh(P_bundle[0], P_bundle[1], P_err, cmap=colormap, vmin=vmin, vmax=vmax)
-    for ax in ax1:
-        ax.set_aspect('equal')
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.xaxis.set_major_locator(MultipleLocator(1))
-    fig1.colorbar(im0, ax=ax1, orientation='vertical', fraction=0.046, pad=0.04,  shrink=0.3)
-    ax1[0].set_title('Error in U')
-    ax1[1].set_title('Error in V')
-    ax1[2].set_title('Error in P')
-    plt.savefig("Images\\Error_Surfaces.png", bbox_inches='tight')
-
-    # Plot convergence curve
-    O_stokes = lambda Nx: StokesSolver(mu, Nx, Nx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose=False, make_spy=False)
-    exact_sol = lambda x,y: [u_exact(x,y), v_exact(x,y), p_exact(x,y)]
-    convTest([10,100], 10, exact_sol, O_stokes, x, y, V_BCs)
-
-    # Plot mag of u
-    U_vec = gridInterp(U_approx, V_approx, V_BCs)
-    U_mag = np.sqrt(U_vec[0]**2 + U_vec[1]**2)
-    fig = plt.figure()
-    ax = plt.axes()
-    im = plt.pcolormesh(P_bundle[0], P_bundle[1], U_mag, cmap = 'viridis')
-    plt.streamplot(P_bundle[0], P_bundle[1], U_vec[0], U_vec[1], density = 0.5, color = "white", broken_streamlines=False, num_arrows = 5)
-    ax.set_aspect('equal')
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    fig.colorbar(im, ax = ax)
-    plt.savefig("Images\\mag_u.png", bbox_inches='tight')
-
-    # Profile code
-    
-    # Call this done
-
     return 0
 
 if __name__ == "__main__":
-    main()
+    with cProfile.Profile() as pr:
+        main()
+
+    pr.dump_stats("stokes_25.prof")
