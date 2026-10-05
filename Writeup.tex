@@ -50,6 +50,12 @@
 
 \tableofcontents
 
+\vfill
+
+\begin{tcolorbox}[colback=orange!10, colframe=orange!80!black]
+        \textbf{Disclaimer:}\\
+        Claude was used to help prepare the results presented in this report. While all code used in the finite difference Solvers was written by a human, Claude was used to help plot and process data.
+    \end{tcolorbox}
 \newpage
 
 \newpage
@@ -102,9 +108,15 @@
 \section{Problem 3}
  \begin{tcolorbox}
         \textbf{Problem Statement:}\\
-        Do something fun!
+        While the problem in this homework assignment is small in scale, the underlying pipeline is the same you could use to approach a larger problem. However, this current implementation stalls out and takes tens of minutes to run on refined grids with more than 500 nodes. Below, I profile my code to determine where potential bottlenecks may apply.
     \end{tcolorbox}
     
-    \textbf{Solution:}
+    \textbf{Solution:}\\
+        The main solver runs in two stages: system assembly and solution to the linear system. As problems grow larger, we know that the RAM requirements for this problem will sky rocket, but which part of the script takes the most time?
+
+        The Stokes solver was ran on an increasingly refined mesh and for several trials and a profile of each execution was captured using python's cprofiler package. Below are the findings on how the time complexity of each method scaled.
+
+        
+
     
 \end{document}
