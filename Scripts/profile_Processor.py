@@ -44,7 +44,7 @@ ax.loglog(meshes, t0 * (meshes / meshes[0])**2, "k--", alpha=0.5,
 ax.loglog(meshes, t0 * (meshes / meshes[0])**3, "k:", alpha=0.5,
           label=r"$\mathcal{O}(N^3)$ Reference")
 
-ax.set_xlabel("Nx")
+ax.set_xlabel("Number of Nodes")
 ax.set_ylabel("Time (s)")
 ax.set_title("Runtime by stage")
 ax.legend()
