@@ -241,7 +241,7 @@ def convTest(mesh_range, num_trials, exact_sol, num_Operator, x, y, BCs, filepat
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 250 # number of nodes in the type 1 grid in each direction
+    Nx = 100 # number of nodes in the type 1 grid in each direction
     x_0 = 0.0 # x left boundary
     x_L = 1.0 # x right boundary
     tp = 2*np.pi
@@ -313,6 +313,7 @@ def main():
     plt.figure()
     ax = plt.axes()
     plt.pcolormesh(P_bundle[0], P_bundle[1], U_mag, cmap = 'viridis')
+    plt.streamplot(P_bundle[0], P_bundle[1], U_vec[0], U_vec[1], density = 0.5, color = "white", broken_streamlines=False, num_arrows = 5)
     ax.set_aspect('equal')
     ax.set_xlabel("x")
     ax.set_ylabel("y")
@@ -321,8 +322,6 @@ def main():
     ax1[1].set_title('Error in V')
     ax1[2].set_title('Error in P')
     plt.savefig("Images\\mag_u.png", bbox_inches='tight')
-
-    # Plot a flow field
 
     # Profile code
     
