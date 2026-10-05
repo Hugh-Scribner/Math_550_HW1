@@ -115,7 +115,23 @@
         The main solver runs in two stages: system assembly and solution to the linear system. As problems grow larger, we know that the RAM requirements for this problem will sky rocket, but which part of the script takes the most time?
 
         The Stokes solver was ran on an increasingly refined mesh and for several trials and a profile of each execution was captured using python's cprofiler package. Below are the findings on how the time complexity of each method scaled.
-
+        \begin{figure}[H]
+                    \begin{centering}
+                        \centering
+                            \includegraphics[scale=.75]{Images/convergence_plot.png}
+                            \caption{Relative error in finite difference approximations follow second order convergence.}
+                            \label{fig: u_convergence}
+                    \end{centering}
+                \end{figure}
+        
+        \begin{figure}[H]
+                    \begin{centering}
+                        \centering
+                            \includegraphics[scale=.75]{Images/convergence_plot.png}
+                            \caption{Relative error in finite difference approximations follow second order convergence.}
+                            \label{fig: u_convergence}
+                    \end{centering}
+                \end{figure}
         
 
     
