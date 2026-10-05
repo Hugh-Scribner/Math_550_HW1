@@ -119,20 +119,11 @@
                     \begin{centering}
                         \centering
                             \includegraphics[scale=.75]{Images/runtime_by_stage.png}
-                            \caption{Above is a plot }
+                            \caption{Above is a plot of the the run time of each stage in the stokes pipeline. Notice how the Solve grows in cubic time, while constructing the linear system completes in quadratic.}
                             \label{fig: u_convergence}
                     \end{centering}
                 \end{figure}
-        
-        \begin{figure}[H]
-                    \begin{centering}
-                        \centering
-                            \includegraphics[scale=.75]{Images/runtime_barplot.png}
-                            \caption{Relative error in finite difference approximations follow second order convergence.}
-                            \label{fig: u_convergence}
-                    \end{centering}
-                \end{figure}
-        
 
+        Figure 4 shows that the solve completes in cubic time while the system assembly completes in quadratic. This means that to speed up the solver, we would want to focus on that part of the code - perhaps by implementing a method like GMRES.
     
 \end{document}
