@@ -60,7 +60,7 @@
     \end{tcolorbox}
     
     \textbf{Solution:}
-        Below is a figure of the magitude of the velocity 
+        Below is a figure of the magnitude of the velocity as predicted by the finite difference solver on a 100x100 grid.
                 \begin{figure}[H]
                     \begin{centering}
                         \centering
@@ -69,15 +69,35 @@
                             \label{fig: u_magnitude}
                     \end{centering}
                 \end{figure}
+        Comparing each of the components of the numerical stokes solution, $u$, $v$, and $p$ to their analytical counter parts, it can be seen that the maximum error in the solution is $\approx 6e-4$ in the figure below. This is an indication that the solver is converging to an accurate solution.
+            \begin{figure}[H]
+                    \begin{centering}
+                        \centering
+                            \includegraphics[scale=.75]{Images/Error_Surfaces.png}
+                            \caption{Absolute error between numerical approximations and analytical u, v and p solutions. Error was calculated using $E_{abs} = \lvert u_{an} - u_{num}\rvert$}
+                            \label{fig: u_error}
+                    \end{centering}
+                \end{figure}
+        
+        
 \newpage
 \section{Problem 2}
  \begin{tcolorbox}
         \textbf{Problem Statement:}\\
-        
+        Perform a convergence analysis on the solver you wrote in the previous problem. Show it has $\mathcal{O}(\Delta x ^2)$ convergence.
     \end{tcolorbox}
     
     \textbf{Solution:}
-
+    The small absolute error in a refined grid is a good indicator of convergence, but to have confidence in the finite difference solver, it needs to show $\mathcal{O}(\Delta x ^2)$ order convergence. Running the solver for a variety of grid sizes and plotting the $L_2$ error between the analytical solution and the exact solution, the finite difference solver demonstrates just that in each of $u$, $v$ and $p$.
+            \begin{figure}[H]
+                    \begin{centering}
+                        \centering
+                            \includegraphics[scale=.75]{Images/convergence_plot.png}
+                            \caption{Absolute error between numerical approximations and analytical u, v and p solutions. Error was calculated using $E_{abs} = \lvert u_{an} - u_{num}\rvert$}
+                            \label{fig: u_convergence}
+                    \end{centering}
+                \end{figure}
+    
 \newpage
 \section{Problem 3}
  \begin{tcolorbox}
