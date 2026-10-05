@@ -4,6 +4,38 @@ import scipy.sparse.linalg as spa
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 
+def buildGrids(x, y, Nc, Nr):
+    dx = (x[1]-x[0])/(Nc)
+    x_1 = np.linspace(x[0]+dx, x[1], Nc)
+    x_2 = np.linspace(x[0]+dx/2, x[1]-dx/2, Nc)
+    y_1 = np.linspace(y[0]+dx, y[1]-dx, Nr-1)
+    y_2 = np.linspace(y[0]+dx/2, y[1]-dx/2, Nr)
+    
+    xx_u, yy_u = np.meshgrid(x_1, y_2, indexing ='xy')
+    xx_v, yy_v = np.meshgrid(x_2, y_1, indexing ='xy')
+    xx_p, yy_p = np.meshgrid(x_2, y_2, indexing ='xy')
+    
+    #O = np.zeros((Nc, Nr))
+    
+    ugrids = [xx_u, yy_u]
+    vgrids = [xx_v, yy_v]
+    pgrids = [xx_p, yy_p]
+
+    return ugrids, vgrids, pgrids
+
+def coloredSpy(A, colormap = "coolwarm", filepath = "Images\\Spy.png"):
+    #plt.spy(A, markersize=4, marker='.')
+    fig, ax = plt.subplots()
+    sc = ax.scatter(A.col, A.row, c=A.data, s=8, cmap=colormap, marker="s")
+    ax.set_xlim(-0.5, A.shape[1] - 0.5)
+    ax.set_ylim(A.shape[0] - 0.5, -0.5)      # row 0 at the top, like spy
+    ax.set_aspect("equal")
+    ax.xaxis.tick_top()                       # optional: matches spy's axis placement
+    fig.colorbar(sc, ax=ax, label="value")
+    plt.savefig(filepath)
+    plt.close(fig)
+    return 0
+
 def buildLaplacian(Nr, Nc, u_mat = False):
     row, col, val = [], [], []
     # Build the basic Laplacian
@@ -29,8 +61,12 @@ def buildDeriv(Nr,Nc, dir = 'x', p_mat= False):
     if dir =='x':
         for i in range(Nr):
             for j in range(Nc):
-                row.append(Nc*i+j); col.append(Nc*i+(j+1) % Nc); val.append(1.0) # loop back for periodicity
-                row.append(Nc*i+j); col.append(Nc*i+(j) % Nc); val.append(-1.0) # loop back for periodicity
+                if p_mat:
+                    row.append(Nc*i+j); col.append(Nc*i+(j+1) % Nc); val.append(1.0) # loop back for periodicity
+                    row.append(Nc*i+j); col.append(Nc*i+(j) % Nc); val.append(-1.0) # loop back for periodicity
+                else:
+                    row.append(Nc*i+j); col.append(Nc*i+(j-1) % Nc); val.append(-1.0) # loop back for periodicity
+                    row.append(Nc*i+j); col.append(Nc*i+(j) % Nc); val.append(1.0) # loop back for periodicity
         A = sp.coo_array((val, (row, col)), shape=(Nr*Nr, Nr*Nc))
     if dir =='y':
         for i in range(Nr):
@@ -57,11 +93,13 @@ def buildDeriv(Nr,Nc, dir = 'x', p_mat= False):
             A = sp.coo_array((val, (row, col)))
     return A
 
-def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=False):
+def sysAssembly(mu, Nc, Nr, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=False, spy=False):
+    dx = (x[1]-x[0])/(Nr)
+
     # Calculate each block matrix and Build A
     L_u = mu*buildLaplacian(Nr, Nc, u_mat = True)
     L_v = mu*buildLaplacian(Nr-1,Nc)
-    G_x = -1.0*buildDeriv(Nr, Nc, dir = 'x')
+    G_x = -1.0*buildDeriv(Nr, Nc, dir = 'x', p_mat = True)
     G_y = -1.0*buildDeriv(Nr-1,Nc, dir = 'y', p_mat = True)
     D_x = buildDeriv(Nr, Nc, dir = 'x') #buildDeriv(Nx-1, Ny-1, direction = 'x')
     D_y = buildDeriv(Nr,Nc, dir = 'y') #buildDeriv(Nx-1, Ny-2, direction = 'y')
@@ -73,36 +111,27 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     # print(D_x.shape)
     # print(D_y.shape)
 
-    pin = True
+    pin = False
     if pin:
-        G_x = G_x + sp.coo_array(([-1], ([0],[0])), shape=(Nr*Nr, Nr*Nc))
-
-    A_grid = [[L_u, None, dx*G_x],
-              [None, L_v, dx*G_y],
-              #[D_x, D_y, None]] # Need to revisit how we are building D, it doesn't match G_x.T and it should (at least need to understand where we went wrong)
-              [G_x.T, G_y.T, None]]
+        G_x_pinned = G_x + sp.coo_array(([-1], ([0],[0])), shape=(Nr*Nr, Nr*Nc))
+        A_grid = [[L_u, None, dx*G_x_pinned],
+                  [None, L_v, dx*G_y],
+                  [D_x, D_y, None]] # Need to revisit how we are building D, it doesn't match G_x.T and it should (at least need to understand where we went wrong)
+                  #[G_x.T, G_y.T, None]]
+    else:
+         A_grid = [[L_u, None, dx*G_x],
+                          [None, L_v, dx*G_y],
+                          [D_x, D_y, None]] # Need to revisit how we are building D, it doesn't match G_x.T and it should (at least need to understand where we went wrong)
+                          #[G_x.T, G_y.T, None]]        
 
     A = sp.block_array(A_grid, format = 'coo')
 
-    #plt.spy(A, markersize=4, marker='.')
-    fig, ax = plt.subplots()
-    sc = ax.scatter(A.col, A.row, c=A.data, s=8, cmap="coolwarm", marker="s")
-    ax.set_xlim(-0.5, A.shape[1] - 0.5)
-    ax.set_ylim(A.shape[0] - 0.5, -0.5)      # row 0 at the top, like spy
-    ax.set_aspect("equal")
-    ax.xaxis.tick_top()                       # optional: matches spy's axis placement
-    fig.colorbar(sc, ax=ax, label="value")
-    plt.savefig("Images\\Spy.png")
+    if spy:
+        coloredSpy(A)
 
-    # Build out b using a meshgrid
-    x_u = np.linspace(x[0], x[1], Nc)
-    y_u = np.linspace(y[0] , y[1], Nr) + dx/2
-    xx_u, yy_u = np.meshgrid(x_u, y_u, indexing ='xy')
-    F = f(xx_u, yy_u)*dx**2 # Forcing in X
-    x_v = np.linspace(x[0], x[1], Nc) + dx/2
-    y_v = np.linspace(y[0] + dx , y[1], Nr-1)
-    xx_v, yy_v = np.meshgrid(x_v, y_v, indexing ='xy')
-    G = g(xx_v, yy_v)*dx**2 # Forcing in Y
+    u_grid, v_grid, p_grid = buildGrids(x, y, Nc, Nr)
+    F = f(u_grid[0], u_grid[1])*dx**2 # Forcing in X
+    G = g(v_grid[0], v_grid[1])*dx**2 # Forcing in Y
     O = np.zeros((Nc, Nr))
 
     # apply BCs to forcing matricies
@@ -114,17 +143,16 @@ def sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_top, V_top, U_bot, V_bot, verbose=
     O[-1,:] -= V_top
 
     b = np.hstack((F.flatten(),G.flatten(),O.flatten()))
-    
-        
+       
     return A, b
 
-def StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose = False):
-       # inner linear system
+def StokesSolver(mu, Nx, Ny, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose = False, make_spy = False):
     Nr = Ny - 1
     Nc = Nx - 1
+    dx = (x[1]-x[0])/(Nx-1) # distance between nodes on type 1 grid (and type two grid)
     if verbose:
         print("Building Linear System...", end='\r')
-    A, b = sysAssembly(mu, Nc, Nr, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose = verbose)
+    A, b = sysAssembly(mu, Nc, Nr, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, spy=make_spy)
     A = A.tocsr()
     if verbose:
         print("Linear System Built.           ", end='\n')
@@ -147,37 +175,54 @@ def StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose
 
     return U, V, P
 
-def grid_eval(u, v, p, Nx, Ny, dx, x, y):
+def grid_eval(u, v, p, Nx, Ny, x, y):
+    dx = (x[1]-x[0])/(Nx-1)
     Nc = Nx - 1
     Nr = Ny - 1
-    x_u = np.linspace(x[0], x[1], Nc)
-    y_u = np.linspace(y[0] , y[1], Nr) + dx/2
-    xx_u, yy_u = np.meshgrid(x_u, y_u, indexing ='xy')
-    U = u(xx_u, yy_u)
-    x_v = np.linspace(x[0], x[1], Nc) + dx/2
-    y_v = np.linspace(y[0] + dx , y[1], Nr-1)
-    xx_v, yy_v = np.meshgrid(x_v, y_v, indexing ='xy')
-    V = v(xx_v, yy_v)
-    x_p = np.linspace(x[0], x[1], Nc) + dx/2
-    y_p = np.linspace(y[0] , y[1], Nr) + dx/2
-    xx_p, yy_p = np.meshgrid(x_p, y_p, indexing ='xy')
-    P = p(xx_p, yy_p)
-    u_grids = [xx_u, yy_u, U]
-    v_grids = [xx_v, yy_v, V]
-    p_grids = [xx_p, yy_p, P]
+
+    u_grids, v_grids, p_grids = buildGrids(x, y, Nc, Nr)
+
+    U = u(u_grids[0], u_grids[1])
+    V = v(v_grids[0], v_grids[1])
+    P = p(p_grids[0], p_grids[1])
+
+    u_grids.append(U)
+    v_grids.append(V)
+    p_grids.append(P)
+
     return u_grids, v_grids, p_grids
+
+def convTest(mesh_range, num_trials, Operator, filepath):
+    meshes = np.floor(np.linspace(mesh_range[0], mesh_range[1], num_trials)).astype(int)
+    L_2 = np.zeros(num_trials)
+    for i in range(num_trials):
+        print(f"Simulating mesh with {meshes[i]**2} nodes")
+        U_approx,V_approx,P_approx = Operator(meshes[i])
+        L_2[i] = rel_error(a, b, meshes[i]) #calculate relative errors for increasingly finer meshes.
+
+    fig3 = plt.figure(3)
+    ax3 = plt.axes()
+    plt.rcParams['lines.linewidth'] = 3 
+#   plt.plot(meshes, L_2, label = "L_2")
+    plt.loglog(meshes, L_2, label = "L_2")
+#   plt.loglog(meshes, L_inf, label = "L_inf")
+#   ax3.set_xscale('log')
+#   ax3.set_yscale('log')
+    plt.legend()
+    ax3.set_xlabel("Number of FD Nodes")
+    ax3.set_ylabel("Relative Error")
+    plt.savefig('Images\\problem4_3.png')
 
 def main():
     # Control Panel
     mu = 1.0 # Viscousity
-    Nx = 100 # number of nodes in the type 1 grid in each direction
-    x_0 = 1.0 # x left boundary
-    x_L = 6.0 # x right boundary
+    Nx = 250 # number of nodes in the type 1 grid in each direction
+    x_0 = 0.0 # x left boundary
+    x_L = 1.0 # x right boundary
     tp = 2*np.pi
+    
     f = lambda x, y: -2*tp**2*np.sin(tp*x)*np.sin(tp*y) - tp*np.cos(tp*x)*np.sin(tp*y)
     g = lambda x, y: -2*tp**2*np.cos(tp*x)*np.cos(tp*y) + tp**2*np.cos(tp*x) - tp*np.sin(tp*x)*np.cos(tp*y)
-    #f = lambda x, y: (tp - 2*tp**2) * np.sin(tp*x) * np.sin(tp*y)
-    #g = lambda x, y: np.cos(tp*x) * np.cos(tp*y) * (tp - 2*tp**2) + 2*tp**2 * np.cos(tp*x)
 
     u_exact = lambda x,y: np.sin(tp*y) * np.sin(tp*x)
     v_exact = lambda x,y: -3.5 + np.cos(tp*x)*(np.cos(tp*y)-1)
@@ -185,6 +230,7 @@ def main():
 
     colormap = 'viridis'
 
+    # U and V vertical BCs, periodic
     # U horizontal BCs
     U_y_0 = 0
     U_y_L = 0
@@ -192,19 +238,16 @@ def main():
     V_y_0 = -3.5
     V_y_L = -3.5
 
-    # U and V vertical BCs, periodic
-
     # Set up the square
     Ny = Nx
     y_0, y_L = x_0, x_L # y left and right boundaries
     x, y = (x_0, x_L), (y_0, y_L)
-    dx = (x_L-x_0)/Nx # distance between nodes on type 1 grid (and type two grid)
-
-    # Solve the problem
-    U_approx,V_approx,P_approx = StokesSolver(mu, Nx, Ny, dx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose=True)
     
+    # Solve the problem
+    U_approx,V_approx,P_approx = StokesSolver(mu, Nx, Ny, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose=True, make_spy=True)
+
     # Error analysis
-    U_bundle,V_bundle,P_bundle = grid_eval(u_exact, v_exact, p_exact, Nx, Ny, dx, x, y)
+    U_bundle,V_bundle,P_bundle = grid_eval(u_exact, v_exact, p_exact, Nx, Ny, x, y)
     U_exact = U_bundle[2]
     V_exact = V_bundle[2]
     P_exact = P_bundle[2]
@@ -232,6 +275,16 @@ def main():
     ax1[1].set_title('Error in V')
     ax1[2].set_title('Error in P')
     plt.savefig("Images\\Error_Surfaces.png", bbox_inches='tight')
+
+    # Plot convergence curve
+    O_stokes = lambda Nx: StokesSolver(mu, Nx, Nx, x, y, f, g, U_y_0, V_y_0, U_y_L, V_y_L, verbose=False, make_spy=False)
+
+    # Plot a flow field
+
+    # Profile code
+    
+    # Call this done
+
     return 0
 
 if __name__ == "__main__":
